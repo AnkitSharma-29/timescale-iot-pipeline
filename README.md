@@ -90,6 +90,31 @@ queries/             hypertable health, EXPLAIN plans, compression ratio
 dashboards/          Grafana dashboard + auto-provisioning
 ```
 
+## Troubleshooting log (issues I hit and fixed)
+
+Real problems encountered while building this, and how I diagnosed them — the
+same debugging loop a support engineer runs on customer databases.
+
+**1. `ERROR: policy refresh window too small`**
+The continuous-aggregate policy failed on startup with *"start and end offsets
+must cover at least two buckets."*
+- **Cause:** with a 1-minute bucket, my refresh window (`start_offset => 2 min`,
+  `end_offset => 10 s`) spanned less than two full buckets.
+- **Fix:** widened it to `start_offset => 10 min`, `end_offset => 1 min` so the
+  window always covers multiple buckets. TimescaleDB refuses windows that can't
+  materialize a complete bucket, to avoid partial/incorrect rollups.
+
+**2. Compression reported 0 chunks / no savings**
+`compress_chunk(... older_than => 1 hour)` compressed nothing and
+`hypertable_compression_stats` came back empty.
+- **Cause:** the hypertable used a **1-day chunk interval**, so a few hours of
+  backfilled data all landed in a single "current" chunk whose time range wasn't
+  entirely older than 1 hour — nothing qualified for compression.
+- **Diagnosis:** checked `timescaledb_information.chunks` and saw only one chunk.
+- **Fix:** switched to a **1-hour chunk interval** so older, closed chunks exist
+  to compress. Result: 3 of 5 chunks compressed, 69.2% saved. Takeaway — chunk
+  interval must be sized against your data rate *and* your compression policy.
+
 ## What I learned
 
 > A few sentences on hypertable chunking, why segment-by matters for
