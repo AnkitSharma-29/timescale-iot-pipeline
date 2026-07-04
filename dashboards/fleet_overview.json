@@ -1,0 +1,74 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Avg speed per vehicle (1-min rollup)",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS \"time\", vehicle_id::text AS metric, avg_speed FROM telemetry_1min WHERE $__timeFilter(bucket) ORDER BY bucket",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Max engine temp per minute",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT bucket AS \"time\", max(avg_engine_temp) AS max_engine_temp FROM telemetry_1min WHERE $__timeFilter(bucket) GROUP BY bucket ORDER BY bucket",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Readings ingested (last 5m)",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT count(*) FROM vehicle_telemetry WHERE time > now() - INTERVAL '5 minutes'",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Low fuel alert (<15%)",
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 9 },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT DISTINCT ON (vehicle_id) vehicle_id, time, fuel_pct FROM vehicle_telemetry WHERE fuel_pct < 15 ORDER BY vehicle_id, time DESC",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "type": "datasource",
+        "query": "postgres",
+        "current": { "text": "TimescaleDB", "value": "TimescaleDB" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s",
+  "title": "Fleet Overview",
+  "uid": "fleet-overview",
+  "version": 1
+}

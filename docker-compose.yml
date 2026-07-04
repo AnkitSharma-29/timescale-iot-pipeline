@@ -1,0 +1,39 @@
+services:
+  timescaledb:
+    # HA image ships TimescaleDB + toolkit; :pg16 pins Postgres 16.
+    image: timescale/timescaledb-ha:pg16
+    container_name: iot_timescaledb
+    environment:
+      POSTGRES_USER: iot
+      POSTGRES_PASSWORD: iotpass
+      POSTGRES_DB: iot
+    ports:
+      - "5432:5432"
+    volumes:
+      - tsdb_data:/home/postgres/pgdata/data
+      # Runs once on first boot to build the schema, policies and aggregates.
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot -d iot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: iot_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./dashboards/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+volumes:
+  tsdb_data:
